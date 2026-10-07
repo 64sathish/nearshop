@@ -1,20 +1,25 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 
+import Navbar from "./components/Navbar";
+import Footer from "./components/Footer";
+
 import Home from "./pages/Home";
 import Products from "./pages/Products";
+import ProductDetails from "./pages/ProductDetails";
 import Cart from "./pages/Cart";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Checkout from "./pages/Checkout";
 import Orders from "./pages/Orders";
 import OrderTracking from "./pages/OrderTracking";
-import ProtectedRoute from "./components/ProtectedRoute";
 import ShopDashboard from "./pages/ShopDashboard";
+import AdminDashboard from "./pages/AdminDashboard";
 
 function App() {
   return (
-    <>
+    <BrowserRouter>
+
       <Toaster
         position="top-right"
         toastOptions={{
@@ -27,62 +32,81 @@ function App() {
         }}
       />
 
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/products" element={<Products />} />
-          <Route path="/cart" element={<Cart />} />
-          <Route path="/checkout" element={<Checkout />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/orders" element={<Orders />} />
-          <Route path="/order-tracking" element={<OrderTracking />} />
-          <Route
-  path="/checkout"
-  element={
-    <ProtectedRoute>
-      <Checkout />
-    </ProtectedRoute>
-  }
-/>
+      <Navbar />
 
-<Route
-  path="/orders"
-  element={
-    <ProtectedRoute>
-      <Orders />
-    </ProtectedRoute>
-  }
-/>
+      <Routes>
 
-<Route
-  path="/order-tracking"
-  element={
-    <ProtectedRoute>
-      <OrderTracking />
-    </ProtectedRoute>
-  }
-/>
-<Route
-  path="/shop-dashboard"
-  element={
-    <ProtectedRoute>
-      <ShopDashboard />
-    </ProtectedRoute>
-  }
-/>
+        {/* Home */}
+        <Route
+          path="/"
+          element={<Home />}
+        />
 
-<Route
-  path="/shop-dashboard"
-  element={
-    <ProtectedRoute>
-      <ShopDashboard />
-    </ProtectedRoute>
-  }
-/>
-        </Routes>
-      </BrowserRouter>
-    </>
+        {/* Products */}
+        <Route
+          path="/products"
+          element={<Products />}
+        />
+
+        {/* Product Details */}
+        <Route
+          path="/products/:id"
+          element={<ProductDetails />}
+        />
+
+        {/* Cart */}
+        <Route
+          path="/cart"
+          element={<Cart />}
+        />
+
+        {/* Login */}
+        <Route
+          path="/login"
+          element={<Login />}
+        />
+
+        {/* Register */}
+        <Route
+          path="/register"
+          element={<Register />}
+        />
+
+        {/* Checkout */}
+        <Route
+          path="/checkout"
+          element={<Checkout />}
+        />
+
+        {/* Orders */}
+        <Route
+          path="/orders"
+          element={<Orders />}
+        />
+
+        {/* Order Tracking */}
+        <Route
+          path="/order-tracking"
+          element={<OrderTracking />}
+        />
+
+        {/* Shop Dashboard */}
+        <Route
+          path="/shop-dashboard"
+          element={<ShopDashboard />}
+        />
+
+        {/* ADMIN DASHBOARD */}
+        <Route
+          path="/admin-dashboard"
+          element={<AdminDashboard />}
+        />
+
+      </Routes>
+
+      <Footer />
+
+    </BrowserRouter>
   );
 }
 

@@ -8,6 +8,7 @@ const connectDB = require("./config/db");
 const userRoutes = require("./routes/userRoutes");
 const productRoutes = require("./routes/productRoutes");
 
+
 const app = express();
 
 connectDB();
@@ -27,6 +28,9 @@ app.use("/uploads", express.static(uploadPath));
 
 app.use("/api/users", userRoutes);
 app.use("/api/products", productRoutes);
+
+
+
 
 app.get("/", (req, res) => {
     res.json({

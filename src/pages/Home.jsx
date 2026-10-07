@@ -1,222 +1,241 @@
-
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import {
   Search,
   ShoppingCart,
-  ArrowRight,
   Truck,
   ShieldCheck,
-  Clock,
-  MapPin,
+  Store,
+  ArrowRight,
+  Leaf,
 } from "lucide-react";
+import axios from "axios";
+import ProductCard from "../components/ProductCard";
+
+const categories = [
+  {
+    name: "Vegetables",
+    icon: "🥬",
+    description: "Fresh vegetables",
+  },
+  {
+    name: "Fruits",
+    icon: "🍎",
+    description: "Fresh fruits",
+  },
+  {
+    name: "Dairy",
+    icon: "🥛",
+    description: "Milk & dairy",
+  },
+  {
+    name: "Rice & Grains",
+    icon: "🌾",
+    description: "Rice & flour",
+  },
+  {
+    name: "Bakery",
+    icon: "🍞",
+    description: "Fresh bakery",
+  },
+  {
+    name: "Beverages",
+    icon: "🥤",
+    description: "Drinks & juices",
+  },
+];
 
 function Home() {
-  const categories = [
-    {
-      name: "Vegetables",
-      emoji: "🥦",
-      color: "bg-green-100",
-    },
-    {
-      name: "Fruits",
-      emoji: "🍎",
-      color: "bg-red-100",
-    },
-    {
-      name: "Dairy",
-      emoji: "🥛",
-      color: "bg-blue-100",
-    },
-    {
-      name: "Rice & Grains",
-      emoji: "🌾",
-      color: "bg-yellow-100",
-    },
-    {
-      name: "Bakery",
-      emoji: "🍞",
-      color: "bg-orange-100",
-    },
-    {
-      name: "Beverages",
-      emoji: "🥤",
-      color: "bg-purple-100",
-    },
-  ];
+  const navigate = useNavigate();
 
-  const popularProducts = [
-    {
-      name: "Fresh Tomato",
-      category: "Vegetables",
-      price: 40,
-      oldPrice: 50,
-      unit: "1 kg",
-      image:
-        "https://images.unsplash.com/photo-1546094096-0df4bcaaa337?auto=format&fit=crop&w=800&q=80",
-    },
-    {
-      name: "Fresh Potato",
-      category: "Vegetables",
-      price: 45,
-      oldPrice: 55,
-      unit: "1 kg",
-      image:
-        "https://images.unsplash.com/photo-1518977676601-b53f82aba655?auto=format&fit=crop&w=800&q=80",
-    },
-    {
-      name: "Fresh Apple",
-      category: "Fruits",
-      price: 140,
-      oldPrice: 170,
-      unit: "1 kg",
-      image:
-        "https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?auto=format&fit=crop&w=800&q=80",
-    },
-    {
-      name: "Fresh Banana",
-      category: "Fruits",
-      price: 60,
-      oldPrice: 75,
-      unit: "1 dozen",
-      image:
-        "https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?auto=format&fit=crop&w=800&q=80",
-    },
-  ];
+  const [products, setProducts] = useState([]);
+  const [searchText, setSearchText] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const response = await axios.get(
+          "http://localhost:5000/api/products"
+        );
+
+        setProducts(response.data);
+      } catch (error) {
+        console.error("Home products error:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProducts();
+  }, []);
+
+  const handleSearch = (event) => {
+    event.preventDefault();
+
+    const search = searchText.trim();
+
+    if (!search) {
+      navigate("/products");
+      return;
+    }
+
+    navigate(
+      `/products?search=${encodeURIComponent(search)}`
+    );
+  };
+
+  const handleCategory = (category) => {
+    navigate(
+      `/products?category=${encodeURIComponent(category)}`
+    );
+  };
 
   return (
-    <div className="bg-[#f8faf7] min-h-screen">
+    <main className="min-h-screen bg-[#f6f8f4]">
 
-      {/* ========================================= */}
-      {/* HERO SECTION */}
-      {/* ========================================= */}
+      {/* ================= HERO ================= */}
 
-      <section className="bg-green-900 text-white">
+      <section className="bg-[#f6f8f4]">
 
-        <div className="max-w-7xl mx-auto px-6 py-16 lg:py-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+          <div className="overflow-hidden rounded-2xl sm:rounded-3xl shadow-xl border border-green-100 bg-white">
 
-            {/* LEFT SIDE */}
+            <img
+              src="/NearShop-hero.png"
+              alt="NearShop fresh groceries"
+              className="w-full h-auto object-cover"
+            />
+
+          </div>
+
+        </div>
+
+      </section>
+
+      {/* ================= BENEFITS ================= */}
+
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 py-6 sm:py-8">
+
+          <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex items-center gap-4 hover:shadow-md transition">
+
+            <div className="w-12 h-12 rounded-xl bg-green-100 text-green-800 flex items-center justify-center">
+              <Truck size={24} />
+            </div>
+
+            <div>
+              <h3 className="font-bold text-gray-900">
+                Fast Delivery
+              </h3>
+
+              <p className="text-sm text-gray-500 mt-1">
+                Quick local delivery
+              </p>
+            </div>
+
+          </div>
+
+          <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex items-center gap-4 hover:shadow-md transition">
+
+            <div className="w-12 h-12 rounded-xl bg-green-100 text-green-800 flex items-center justify-center">
+              <ShieldCheck size={24} />
+            </div>
+
+            <div>
+              <h3 className="font-bold text-gray-900">
+                Trusted Shops
+              </h3>
+
+              <p className="text-sm text-gray-500 mt-1">
+                Shop with confidence
+              </p>
+            </div>
+
+          </div>
+
+          <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex items-center gap-4 hover:shadow-md transition">
+
+            <div className="w-12 h-12 rounded-xl bg-green-100 text-green-800 flex items-center justify-center">
+              <Store size={24} />
+            </div>
+
+            <div>
+              <h3 className="font-bold text-gray-900">
+                Local Shopping
+              </h3>
+
+              <p className="text-sm text-gray-500 mt-1">
+                Support local stores
+              </p>
+            </div>
+
+          </div>
+
+        </div>
+
+      </section>
+
+      {/* ================= SEARCH ================= */}
+
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
+
+        <div className="bg-green-900 rounded-2xl p-5 sm:p-7">
+
+          <div className="flex items-center gap-2 text-green-200 mb-3">
+
+            <Leaf size={18} />
+
+            <span className="text-sm font-semibold">
+              FIND YOUR GROCERIES
+            </span>
+
+          </div>
+
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5">
 
             <div>
 
-              <div className="inline-flex items-center gap-2 bg-green-800 px-4 py-2 rounded-full mb-6">
-                <MapPin size={17} />
+              <h2 className="text-xl sm:text-2xl font-bold text-white">
+                What are you looking for?
+              </h2>
 
-                <span className="text-sm">
-                  Fresh groceries near you
-                </span>
-              </div>
-
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold leading-tight">
-
-                Fresh groceries.
-
-                <br />
-
-                <span className="text-green-300">
-                  Local shops.
-                </span>
-
-                <br />
-
-                Delivered to you.
-              </h1>
-
-              <p className="text-green-100 text-lg mt-6 max-w-xl leading-8">
-                Shop fresh vegetables, fruits, dairy products,
-                groceries and more from trusted local shops
-                around you.
+              <p className="text-green-200 text-sm mt-1">
+                Search from fresh products available near you.
               </p>
 
-              {/* SEARCH */}
-
-              <div className="bg-white rounded-xl p-2 flex items-center mt-8 max-w-xl shadow-lg">
-
-                <Search
-                  size={22}
-                  className="text-gray-400 ml-3"
-                />
-
-                <input
-                  type="text"
-                  placeholder="Search for vegetables, fruits, groceries..."
-                  className="flex-1 px-3 py-3 outline-none text-gray-700"
-                />
-
-                <Link
-                  to="/products"
-                  className="bg-green-700 hover:bg-green-800 text-white px-6 py-3 rounded-lg font-semibold"
-                >
-                  Search
-                </Link>
-
-              </div>
-
-              {/* BUTTONS */}
-
-              <div className="flex flex-wrap gap-4 mt-7">
-
-                <Link
-                  to="/products"
-                  className="bg-white text-green-900 hover:bg-green-100 px-6 py-3 rounded-lg font-bold flex items-center gap-2"
-                >
-                  Shop Now
-
-                  <ArrowRight size={18} />
-                </Link>
-
-                <Link
-                  to="/cart"
-                  className="border border-green-400 hover:bg-green-800 px-6 py-3 rounded-lg font-semibold flex items-center gap-2"
-                >
-                  <ShoppingCart size={18} />
-
-                  View Cart
-                </Link>
-
-              </div>
-
             </div>
 
-            {/* RIGHT SIDE */}
+            <form
+              onSubmit={handleSearch}
+              className="bg-white rounded-xl p-1.5 flex items-center w-full md:max-w-xl shadow-lg"
+            >
 
-            <div className="relative">
+              <Search
+                size={20}
+                className="text-gray-400 ml-3 flex-shrink-0"
+              />
 
-              <div className="bg-green-800 rounded-3xl p-6">
+              <input
+                type="text"
+                value={searchText}
+                onChange={(event) =>
+                  setSearchText(event.target.value)
+                }
+                placeholder="Search tomato, rice, apple..."
+                className="flex-1 min-w-0 px-3 py-3 outline-none text-gray-800 text-sm sm:text-base bg-transparent"
+              />
 
-                <img
-                  src="https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1000&q=80"
-                  alt="Fresh groceries"
-                  className="w-full h-[420px] object-cover rounded-2xl"
-                />
+              <button
+                type="submit"
+                className="bg-green-800 hover:bg-green-950 text-white px-4 sm:px-6 py-3 rounded-lg font-semibold transition"
+              >
+                Search
+              </button>
 
-              </div>
-
-              {/* FLOATING CARD */}
-
-              <div className="absolute -bottom-6 -left-4 md:-left-8 bg-white text-gray-800 rounded-xl shadow-xl p-4 flex items-center gap-4">
-
-                <div className="bg-green-100 p-3 rounded-full">
-                  <Truck
-                    size={25}
-                    className="text-green-700"
-                  />
-                </div>
-
-                <div>
-                  <p className="font-bold">
-                    Fast Delivery
-                  </p>
-
-                  <p className="text-sm text-gray-500">
-                    From nearby shops
-                  </p>
-                </div>
-
-              </div>
-
-            </div>
+            </form>
 
           </div>
 
@@ -224,156 +243,59 @@ function Home() {
 
       </section>
 
-      {/* ========================================= */}
-      {/* BENEFITS */}
-      {/* ========================================= */}
+      {/* ================= CATEGORIES ================= */}
 
-      <section className="bg-white border-b">
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
 
-        <div className="max-w-7xl mx-auto px-6 py-8">
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-
-            <div className="flex items-center gap-4">
-
-              <div className="bg-green-100 p-3 rounded-full">
-                <Truck
-                  className="text-green-700"
-                  size={24}
-                />
-              </div>
-
-              <div>
-                <h3 className="font-bold">
-                  Fast Delivery
-                </h3>
-
-                <p className="text-sm text-gray-500">
-                  Quick local delivery
-                </p>
-              </div>
-
-            </div>
-
-            <div className="flex items-center gap-4">
-
-              <div className="bg-green-100 p-3 rounded-full">
-                <ShieldCheck
-                  className="text-green-700"
-                  size={24}
-                />
-              </div>
-
-              <div>
-                <h3 className="font-bold">
-                  Trusted Shops
-                </h3>
-
-                <p className="text-sm text-gray-500">
-                  Verified local sellers
-                </p>
-              </div>
-
-            </div>
-
-            <div className="flex items-center gap-4">
-
-              <div className="bg-green-100 p-3 rounded-full">
-                <Clock
-                  className="text-green-700"
-                  size={24}
-                />
-              </div>
-
-              <div>
-                <h3 className="font-bold">
-                  Fresh Products
-                </h3>
-
-                <p className="text-sm text-gray-500">
-                  Fresh groceries every day
-                </p>
-              </div>
-
-            </div>
-
-            <div className="flex items-center gap-4">
-
-              <div className="bg-green-100 p-3 rounded-full">
-                <MapPin
-                  className="text-green-700"
-                  size={24}
-                />
-              </div>
-
-              <div>
-                <h3 className="font-bold">
-                  Local Shops
-                </h3>
-
-                <p className="text-sm text-gray-500">
-                  Shops near your location
-                </p>
-              </div>
-
-            </div>
-
-          </div>
-
-        </div>
-
-      </section>
-
-      {/* ========================================= */}
-      {/* CATEGORIES */}
-      {/* ========================================= */}
-
-      <section className="max-w-7xl mx-auto px-6 py-14">
-
-        <div className="flex items-end justify-between mb-8">
+        <div className="flex items-end justify-between gap-4 mb-6">
 
           <div>
 
-            <p className="text-green-700 font-semibold">
-              Browse categories
+            <p className="text-green-700 font-bold text-sm">
+              SHOP BY CATEGORY
             </p>
 
-            <h2 className="text-3xl font-bold text-green-950 mt-1">
-              Shop by Category
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 mt-1">
+              What are you looking for?
             </h2>
 
           </div>
 
           <Link
             to="/products"
-            className="hidden sm:flex items-center gap-2 text-green-700 font-semibold hover:text-green-900"
+            className="hidden sm:flex items-center gap-1 text-green-700 font-semibold text-sm hover:text-green-900"
           >
-            View All
-
-            <ArrowRight size={18} />
+            View all
+            <ArrowRight size={16} />
           </Link>
 
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
 
           {categories.map((category) => (
 
-            <Link
-              to="/products"
+            <button
               key={category.name}
-              className={`${category.color} rounded-2xl p-6 text-center hover:-translate-y-1 hover:shadow-md transition`}
+              onClick={() =>
+                handleCategory(category.name)
+              }
+              className="bg-white rounded-2xl p-4 sm:p-5 border border-gray-100 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all text-left group"
             >
 
-              <div className="text-5xl mb-4">
-                {category.emoji}
+              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-green-50 flex items-center justify-center text-2xl sm:text-3xl group-hover:bg-green-100 transition">
+                {category.icon}
               </div>
 
-              <h3 className="font-bold text-gray-800">
+              <h3 className="font-bold text-gray-900 text-sm sm:text-base mt-4">
                 {category.name}
               </h3>
 
-            </Link>
+              <p className="text-xs text-gray-500 mt-1">
+                {category.description}
+              </p>
+
+            </button>
 
           ))}
 
@@ -381,150 +303,165 @@ function Home() {
 
       </section>
 
-      {/* ========================================= */}
-      {/* POPULAR PRODUCTS */}
-      {/* ========================================= */}
+      {/* ================= POPULAR PRODUCTS ================= */}
 
-      <section className="bg-white py-14">
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
 
-        <div className="max-w-7xl mx-auto px-6">
+        <div className="flex items-end justify-between gap-4 mb-6">
 
-          <div className="flex items-end justify-between mb-8">
+          <div>
 
-            <div>
+            <p className="text-green-700 font-bold text-sm">
+              FRESH PICKS
+            </p>
 
-              <p className="text-green-700 font-semibold">
-                Fresh picks for you
-              </p>
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 mt-1">
+              Popular Products
+            </h2>
 
-              <h2 className="text-3xl font-bold text-green-950 mt-1">
-                Popular Products
-              </h2>
-
-            </div>
-
-            <Link
-              to="/products"
-              className="hidden sm:flex items-center gap-2 text-green-700 font-semibold hover:text-green-900"
-            >
-              View All
-
-              <ArrowRight size={18} />
-            </Link>
+            <p className="text-gray-500 text-sm mt-1">
+              Fresh products from nearby shops
+            </p>
 
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <Link
+            to="/products"
+            className="hidden sm:flex items-center gap-1 text-green-700 font-semibold text-sm hover:text-green-900"
+          >
+            See all
+            <ArrowRight size={16} />
+          </Link>
 
-            {popularProducts.map((product) => (
+        </div>
+
+        {loading ? (
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+
+            {[1, 2, 3, 4].map((item) => (
 
               <div
-                key={product.name}
-                className="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-lg transition"
-              >
-
-                {/* IMAGE */}
-
-                <div className="h-52 bg-green-50 overflow-hidden">
-
-                  <img
-                    src={product.image}
-                    alt={product.name}
-                    className="w-full h-full object-cover hover:scale-105 transition duration-300"
-                  />
-
-                </div>
-
-                {/* DETAILS */}
-
-                <div className="p-5">
-
-                  <p className="text-sm text-green-700 font-medium">
-                    {product.category}
-                  </p>
-
-                  <h3 className="text-lg font-bold text-gray-800 mt-1">
-                    {product.name}
-                  </h3>
-
-                  <p className="text-sm text-gray-500 mt-1">
-                    {product.unit}
-                  </p>
-
-                  <div className="flex items-center gap-2 mt-4">
-
-                    <span className="text-xl font-bold text-green-700">
-                      ₹{product.price}
-                    </span>
-
-                    <span className="text-sm text-gray-400 line-through">
-                      ₹{product.oldPrice}
-                    </span>
-
-                  </div>
-
-                  <Link
-                    to="/products"
-                    className="block text-center bg-green-700 hover:bg-green-800 text-white font-semibold py-3 rounded-lg mt-4"
-                  >
-                    Shop Now
-                  </Link>
-
-                </div>
-
-              </div>
+                key={item}
+                className="bg-white rounded-2xl h-96 animate-pulse border border-gray-100"
+              />
 
             ))}
 
           </div>
 
+        ) : products.length === 0 ? (
+
+          <div className="bg-white rounded-2xl p-12 text-center border border-gray-100">
+
+            <div className="text-5xl">
+              🛒
+            </div>
+
+            <h3 className="text-xl font-bold text-gray-800 mt-4">
+              No products available
+            </h3>
+
+            <p className="text-gray-500 mt-2">
+              Please add products from the shop dashboard.
+            </p>
+
+            <Link
+              to="/products"
+              className="inline-flex items-center gap-2 mt-5 bg-green-800 text-white px-5 py-3 rounded-xl font-semibold hover:bg-green-900"
+            >
+              View Products
+              <ArrowRight size={17} />
+            </Link>
+
+          </div>
+
+        ) : (
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 sm:gap-6">
+
+            {products.slice(0, 4).map((product) => (
+
+              <ProductCard
+                key={product._id}
+                product={{
+                  ...product,
+                  id: product._id,
+                }}
+              />
+
+            ))}
+
+          </div>
+
+        )}
+
+        <div className="flex justify-center sm:hidden mt-6">
+
+          <Link
+            to="/products"
+            className="inline-flex items-center gap-2 text-green-700 font-bold"
+          >
+            View all products
+            <ArrowRight size={17} />
+          </Link>
+
         </div>
 
       </section>
 
-      {/* ========================================= */}
-      {/* LOCAL SHOP BANNER */}
-      {/* ========================================= */}
+      {/* ================= LOCAL SHOP BANNER ================= */}
 
-      <section className="max-w-7xl mx-auto px-6 py-14">
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
 
-        <div className="bg-green-900 rounded-3xl overflow-hidden">
+        <div className="relative overflow-hidden rounded-3xl bg-green-900 text-white">
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 items-center">
+          <div className="absolute -right-20 -top-20 w-64 h-64 bg-green-500/20 rounded-full blur-2xl" />
 
-            <div className="p-8 md:p-12 text-white">
+          <div className="relative grid grid-cols-1 md:grid-cols-2 items-center">
 
-              <p className="text-green-300 font-semibold mb-3">
-                SUPPORT LOCAL
-              </p>
+            <div className="p-7 sm:p-10 lg:p-12">
 
-              <h2 className="text-3xl md:text-4xl font-bold leading-tight">
-                Your neighborhood shops,
-                <br />
-                now online.
+              <div className="flex items-center gap-2 text-green-300">
+
+                <Store size={18} />
+
+                <p className="font-bold text-sm">
+                  SUPPORT LOCAL BUSINESS
+                </p>
+
+              </div>
+
+              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold mt-3">
+
+                Your local shops,
+
+                <span className="block text-green-300">
+                  now on NearShop.
+                </span>
+
               </h2>
 
-              <p className="text-green-100 mt-5 leading-7 max-w-lg">
-                Discover products from nearby grocery stores
-                and support local businesses while getting
-                your daily essentials delivered to your door.
+              <p className="text-green-100 mt-4 max-w-lg text-sm sm:text-base leading-relaxed">
+                Discover products from nearby stores
+                and enjoy convenient local shopping
+                from one place.
               </p>
 
               <Link
                 to="/products"
-                className="inline-flex items-center gap-2 bg-white text-green-900 px-6 py-3 rounded-lg font-bold mt-7 hover:bg-green-100"
+                className="inline-flex items-center gap-2 mt-6 bg-white text-green-900 px-5 py-3 rounded-xl font-bold hover:bg-green-50 transition"
               >
-                Explore Local Shops
-
+                Explore Shops
                 <ArrowRight size={18} />
               </Link>
 
             </div>
 
-            <div className="h-72 lg:h-full">
+            <div className="hidden md:block h-full min-h-[300px]">
 
               <img
-                src="https://images.unsplash.com/photo-1604719312566-8912e9227c6a?auto=format&fit=crop&w=1000&q=80"
+                src="https://images.unsplash.com/photo-1604719312566-8912e9227c6a?auto=format&fit=crop&w=1000&q=85"
                 alt="Local grocery shop"
                 className="w-full h-full object-cover"
               />
@@ -537,43 +474,51 @@ function Home() {
 
       </section>
 
-      {/* ========================================= */}
-      {/* CALL TO ACTION */}
-      {/* ========================================= */}
+      {/* ================= FINAL CTA ================= */}
 
-      <section className="bg-green-50 py-16">
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 pb-16">
 
-        <div className="max-w-4xl mx-auto px-6 text-center">
+        <div className="bg-white rounded-3xl border border-gray-100 shadow-sm text-center p-8 sm:p-12">
 
-          <div className="text-5xl mb-5">
+          <div className="inline-flex items-center justify-center w-14 h-14 bg-green-100 rounded-2xl text-2xl">
             🛒
           </div>
 
-          <h2 className="text-3xl md:text-4xl font-bold text-green-950">
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 mt-4">
             Ready to shop fresh?
           </h2>
 
-          <p className="text-gray-600 mt-4 max-w-xl mx-auto">
-            Find your favorite groceries from trusted
-            local shops and get them delivered to your home.
+          <p className="text-gray-500 mt-2 max-w-xl mx-auto">
+            Find fresh groceries from trusted local
+            shops and add them to your NearShop cart.
           </p>
 
-          <Link
-            to="/products"
-            className="inline-flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-7 py-3 rounded-lg font-bold mt-7"
-          >
-            Start Shopping
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-6">
 
-            <ArrowRight size={18} />
-          </Link>
+            <Link
+              to="/products"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-green-800 text-white px-6 py-3.5 rounded-xl font-bold hover:bg-green-900 transition"
+            >
+              Start Shopping
+              <ArrowRight size={18} />
+            </Link>
+
+            <Link
+              to="/cart"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 border border-green-700 text-green-800 px-6 py-3.5 rounded-xl font-bold hover:bg-green-50 transition"
+            >
+              <ShoppingCart size={18} />
+              View Cart
+            </Link>
+
+          </div>
 
         </div>
 
       </section>
 
-    </div>
+    </main>
   );
 }
 
 export default Home;
-

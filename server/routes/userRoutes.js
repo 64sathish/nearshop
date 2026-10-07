@@ -1,13 +1,15 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+
 const User = require("../models/User");
+const { protect } = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
-const { protect } = require("../middleware/authMiddleware");
-
-// Register
+// ===============================
+// REGISTER
+// ===============================
 router.post("/register", async(req, res) => {
     try {
         const { name, email, phone, password } = req.body;
@@ -18,7 +20,9 @@ router.post("/register", async(req, res) => {
             });
         }
 
-        const existingUser = await User.findOne({ email });
+        const existingUser = await User.findOne({
+            email: email.toLowerCase(),
+        });
 
         if (existingUser) {
             return res.status(400).json({
@@ -30,13 +34,15 @@ router.post("/register", async(req, res) => {
 
         const user = await User.create({
             name,
-            email,
+            email: email.toLowerCase(),
             phone,
             password: hashedPassword,
+            role: "customer",
         });
 
         res.status(201).json({
             message: "Registration successful",
+
             user: {
                 id: user._id,
                 name: user.name,
@@ -54,7 +60,9 @@ router.post("/register", async(req, res) => {
     }
 });
 
-// Login
+// ===============================
+// LOGIN
+// ===============================
 router.post("/login", async(req, res) => {
     try {
         const { email, password } = req.body;
@@ -65,7 +73,9 @@ router.post("/login", async(req, res) => {
             });
         }
 
-        const user = await User.findOne({ email });
+        const user = await User.findOne({
+            email: email.toLowerCase(),
+        });
 
         if (!user) {
             return res.status(401).json({
@@ -95,7 +105,9 @@ router.post("/login", async(req, res) => {
 
         res.json({
             message: "Login successful",
+
             token,
+
             user: {
                 id: user._id,
                 name: user.name,
@@ -113,8 +125,9 @@ router.post("/login", async(req, res) => {
     }
 });
 
-
-// Protected Profile
+// ===============================
+// PROFILE
+// ===============================
 router.get("/profile", protect, async(req, res) => {
     try {
         const user = await User.findById(req.user.id).select("-password");
@@ -138,6 +151,9 @@ router.get("/profile", protect, async(req, res) => {
     }
 });
 
+// ===============================
+// MAKE CURRENT USER A SHOP OWNER
+// ===============================
 router.put("/make-shop", protect, async(req, res) => {
     try {
         const user = await User.findById(req.user.id);
@@ -152,20 +168,61 @@ router.put("/make-shop", protect, async(req, res) => {
 
         await user.save();
 
+        // Create a new token containing the updated role
+        const newToken = jwt.sign({
+                id: user._id,
+                role: user.role,
+            },
+            process.env.JWT_SECRET, {
+                expiresIn: "7d",
+            }
+        );
+
         res.json({
             message: "You are now a shop owner",
+
+            token: newToken,
+
             user: {
                 id: user._id,
                 name: user.name,
                 email: user.email,
+                phone: user.phone,
                 role: user.role,
             },
         });
     } catch (error) {
+        console.error("Make shop error:", error.message);
+
         res.status(500).json({
             message: "Server error",
         });
     }
 });
 
+// ===============================
+// ADMIN: GET ALL USERS
+// ===============================
+router.get("/admin/users", protect, async(req, res) => {
+    try {
+        // Only admin can access
+        if (req.user.role !== "admin") {
+            return res.status(403).json({
+                message: "Admin access required",
+            });
+        }
+
+        const users = await User.find()
+            .select("-password")
+            .sort({ createdAt: -1 });
+
+        res.json(users);
+    } catch (error) {
+        console.error("Get admin users error:", error.message);
+
+        res.status(500).json({
+            message: "Server error",
+        });
+    }
+});
 module.exports = router;

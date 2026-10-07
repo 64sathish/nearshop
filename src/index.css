@@ -1,13 +1,63 @@
-
-@import "tailwindcss";
-
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  font-family: Arial, sans-serif;
-  background: #f8faf7;
-  color: #1b3022;
-}
+ @import "tailwindcss";
+ * {
+     box-sizing: border-box;
+ }
+ 
+ html {
+     scroll-behavior: smooth;
+ }
+ 
+ body {
+     margin: 0;
+     font-family: Inter, Arial, Helvetica, sans-serif;
+     background: #f6f8f4;
+     color: #17251b;
+     -webkit-font-smoothing: antialiased;
+ }
+ 
+ button,
+ input,
+ textarea,
+ select {
+     font: inherit;
+ }
+ 
+ button {
+     cursor: pointer;
+ }
+ 
+ img {
+     max-width: 100%;
+     display: block;
+ }
+ 
+ ::selection {
+     background: #166534;
+     color: white;
+ }
+ /* Hide horizontal scrollbar for category list */
+ 
+ .scrollbar-hide {
+     -ms-overflow-style: none;
+     scrollbar-width: none;
+ }
+ 
+ .scrollbar-hide::-webkit-scrollbar {
+     display: none;
+ }
+ /* Text helpers */
+ 
+ .line-clamp-1 {
+     overflow: hidden;
+     display: -webkit-box;
+     -webkit-line-clamp: 1;
+     -webkit-box-orient: vertical;
+ }
+ /* Better mobile tap experience */
+ 
+ @media (max-width: 640px) {
+     button,
+     a {
+         -webkit-tap-highlight-color: transparent;
+     }
+ }
