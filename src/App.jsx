@@ -10,11 +10,14 @@ import ProductDetails from "./pages/ProductDetails";
 import Cart from "./pages/Cart";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import OTPVerification from "./pages/OTPVerification";
 import Checkout from "./pages/Checkout";
 import Orders from "./pages/Orders";
 import OrderTracking from "./pages/OrderTracking";
 import ShopDashboard from "./pages/ShopDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
+import Profile from "./pages/Profile";
+import Wishlist from "./pages/Wishlist";
 
 function App() {
   return (
@@ -48,7 +51,6 @@ function App() {
           element={<Products />}
         />
 
-        {/* Product Details */}
         <Route
           path="/products/:id"
           element={<ProductDetails />}
@@ -60,17 +62,39 @@ function App() {
           element={<Cart />}
         />
 
-        {/* Login */}
+        {/* Authentication */}
         <Route
           path="/login"
           element={<Login />}
         />
 
-        {/* Register */}
         <Route
           path="/register"
           element={<Register />}
         />
+
+        {/* OTP Verification */}
+        <Route
+          path="/verify-otp"
+          element={<OTPVerification />}
+        />
+
+        <Route path="/cart" element={<Cart />} />
+<Route path="/login" element={<Login />} />
+<Route path="/register" element={<Register />} />
+<Route
+  path="/verify-otp"
+  element={<OTPVerification />}
+/>
+
+<Route path="/profile" element={<Profile />} />
+
+<Route path="/checkout" element={<Checkout />} />
+<Route path="/orders" element={<Orders />} />
+<Route
+  path="/wishlist"
+  element={<Wishlist />}
+/>
 
         {/* Checkout */}
         <Route
@@ -90,13 +114,13 @@ function App() {
           element={<OrderTracking />}
         />
 
-        {/* Shop Dashboard */}
+        {/* Shop */}
         <Route
           path="/shop-dashboard"
           element={<ShopDashboard />}
         />
 
-        {/* ADMIN DASHBOARD */}
+        {/* Admin */}
         <Route
           path="/admin-dashboard"
           element={<AdminDashboard />}

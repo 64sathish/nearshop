@@ -1,20 +1,32 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import axios from "axios";
+import toast from "react-hot-toast";
 import {
-  ArrowLeft,
   MapPin,
-  User,
   Phone,
-  Home,
+  User,
   CreditCard,
-  Banknote,
-  Smartphone,
-  ShieldCheck,
+  ShoppingBag,
   Truck,
   CheckCircle,
 } from "lucide-react";
-import toast from "react-hot-toast";
+
 import { useCart } from "../context/CartContext";
+
+const API_URL = "http://localhost:5000";
+
+function getDiscountPercent(subtotal) {
+  if (subtotal >= 100000) return 20;
+  if (subtotal >= 50000) return 18;
+  if (subtotal >= 20000) return 15;
+  if (subtotal >= 10000) return 12;
+  if (subtotal >= 5000) return 10;
+  if (subtotal >= 2000) return 7;
+  if (subtotal >= 1000) return 5;
+
+  return 0;
+}
 
 function Checkout() {
   const navigate = useNavigate();
@@ -23,9 +35,12 @@ function Checkout() {
     cartItems,
     subtotal,
     deliveryCharge,
-    total,
     clearCart,
   } = useCart();
+
+  const [loading, setLoading] = useState(false);
+
+  const [user, setUser] = useState(null);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -35,599 +50,1039 @@ function Checkout() {
     pincode: "",
   });
 
-  const [paymentMethod, setPaymentMethod] = useState("cod");
-  const [placingOrder, setPlacingOrder] = useState(false);
+  const [paymentMethod, setPaymentMethod] =
+    useState("cod");
+
+  // ==================================================
+  // GET LOGGED-IN USER
+  // ==================================================
+
+  useEffect(() => {
+    try {
+      const savedUser =
+        localStorage.getItem("nearshop-user");
+
+      if (savedUser) {
+        const parsedUser =
+          JSON.parse(savedUser);
+
+        setUser(parsedUser);
+
+        setFormData((previous) => ({
+          ...previous,
+          name: parsedUser.name || "",
+          phone: parsedUser.phone || "",
+        }));
+      }
+    } catch (error) {
+      console.error(
+        "User data error:",
+        error
+      );
+    }
+  }, []);
+
+  // ==================================================
+  // DISCOUNT
+  // ==================================================
+
+  const discountPercent = useMemo(() => {
+    return getDiscountPercent(subtotal);
+  }, [subtotal]);
+
+  const discountAmount = useMemo(() => {
+    return (
+      subtotal *
+      discountPercent /
+      100
+    );
+  }, [
+    subtotal,
+    discountPercent,
+  ]);
+
+  // ==================================================
+  // FINAL TOTAL
+  // ==================================================
+
+  const finalTotal =
+    subtotal -
+    discountAmount +
+    deliveryCharge;
+
+  // ==================================================
+  // HANDLE INPUT
+  // ==================================================
 
   const handleChange = (event) => {
-    const { name, value } = event.target;
+    const {
+      name,
+      value,
+    } = event.target;
 
-    setFormData((current) => ({
-      ...current,
+    setFormData((previous) => ({
+      ...previous,
       [name]: value,
     }));
   };
 
-  const handlePlaceOrder = (event) => {
-    event.preventDefault();
+  // ==================================================
+  // CHECK LOGIN
+  // ==================================================
 
-    if (cartItems.length === 0) {
-      toast.error("Your cart is empty");
-      navigate("/products");
-      return;
+  const checkLogin = () => {
+    const token =
+      localStorage.getItem(
+        "nearshop-token"
+      );
+
+    if (!token) {
+      toast.error(
+        "Please login before checkout."
+      );
+
+      navigate("/login");
+
+      return false;
+    }
+
+    return true;
+  };
+
+  // ==================================================
+  // VALIDATE FORM
+  // ==================================================
+
+  const validateForm = () => {
+    if (!formData.name.trim()) {
+      toast.error(
+        "Please enter your name."
+      );
+
+      return false;
+    }
+
+    if (!/^[0-9]{10}$/.test(formData.phone)) {
+      toast.error(
+        "Please enter a valid 10 digit phone number."
+      );
+
+      return false;
     }
 
     if (
-      !formData.name.trim() ||
-      !formData.phone.trim() ||
-      !formData.address.trim() ||
-      !formData.city.trim() ||
-      !formData.pincode.trim()
+      !formData.address.trim()
     ) {
-      toast.error("Please fill all delivery details");
-      return;
+      toast.error(
+        "Please enter your delivery address."
+      );
+
+      return false;
     }
 
-    if (formData.phone.length < 10) {
-      toast.error("Please enter a valid phone number");
-      return;
+    if (!formData.city.trim()) {
+      toast.error(
+        "Please enter your city."
+      );
+
+      return false;
     }
 
-    if (formData.pincode.length !== 6) {
-      toast.error("Please enter a valid 6-digit pincode");
-      return;
+    if (
+      !/^[0-9]{6}$/.test(
+        formData.pincode
+      )
+    ) {
+      toast.error(
+        "Please enter a valid 6 digit pincode."
+      );
+
+      return false;
     }
 
-    setPlacingOrder(true);
+    if (cartItems.length === 0) {
+      toast.error(
+        "Your cart is empty."
+      );
 
-    const order = {
-      orderId: `NS${Date.now()}`,
-      address: formData,
-      items: cartItems,
-      subtotal,
-      deliveryCharge,
-      total,
-      paymentMethod,
-      orderDate: new Date().toISOString(),
-      status: "Order Placed",
-    };
+      return false;
+    }
 
-    localStorage.setItem(
-      "nearshop-last-order",
-      JSON.stringify(order)
-    );
-
-    setTimeout(() => {
-      clearCart();
-
-      toast.success("Order placed successfully!");
-
-      navigate("/orders");
-    }, 800);
+    return true;
   };
+
+  // ==================================================
+  // PLACE ORDER
+  // ==================================================
+
+  const handlePlaceOrder = async () => {
+    if (!checkLogin()) {
+      return;
+    }
+
+    if (!validateForm()) {
+      return;
+    }
+
+    const token =
+      localStorage.getItem(
+        "nearshop-token"
+      );
+
+    if (!token) {
+      toast.error(
+        "Login session expired. Please login again."
+      );
+
+      navigate("/login");
+
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      // ================================================
+      // CREATE ORDER ITEMS
+      // ================================================
+
+      const orderItems =
+        cartItems.map((item) => ({
+          productId:
+            item.productId ||
+            item._id ||
+            item.id,
+
+          name: item.name,
+
+          price: Number(item.price),
+
+          quantity:
+            Number(item.quantity) || 1,
+
+          unit: item.unit || "",
+
+          shop: item.shop || "",
+
+          image: item.image || "",
+        }));
+
+      // ================================================
+      // CREATE ORDER ID
+      // ================================================
+
+      const orderId =
+        `NS${Date.now()}`;
+
+      // ================================================
+      // SEND ORDER TO BACKEND
+      // ================================================
+
+      const response =
+        await axios.post(
+          `${API_URL}/api/orders`,
+          {
+            orderId,
+
+            customerName:
+              formData.name.trim(),
+
+            phone:
+              formData.phone.trim(),
+
+            address: {
+              name:
+                formData.name.trim(),
+
+              phone:
+                formData.phone.trim(),
+
+              address:
+                formData.address.trim(),
+
+              city:
+                formData.city.trim(),
+
+              pincode:
+                formData.pincode.trim(),
+            },
+
+            items: orderItems,
+
+            subtotal:
+              Number(subtotal),
+
+            discountPercent:
+              Number(
+                discountPercent
+              ),
+
+            discountAmount:
+              Number(
+                discountAmount
+              ),
+
+            deliveryCharge:
+              Number(
+                deliveryCharge
+              ),
+
+            total:
+              Number(
+                finalTotal
+              ),
+
+            paymentMethod:
+              paymentMethod,
+          },
+          {
+            headers: {
+              Authorization:
+                `Bearer ${token}`,
+
+              "Content-Type":
+                "application/json",
+            },
+          }
+        );
+
+      console.log(
+        "ORDER RESPONSE:",
+        response.data
+      );
+
+      // ================================================
+      // SUCCESS
+      // ================================================
+
+      if (
+        response.data?.success !== false
+      ) {
+        clearCart();
+
+        toast.success(
+          "Order placed successfully!"
+        );
+
+        // Give toast a moment
+        setTimeout(() => {
+          navigate("/orders");
+        }, 800);
+
+        return;
+      }
+
+      toast.error(
+        response.data?.message ||
+          "Unable to place order."
+      );
+    } catch (error) {
+      console.error(
+        "Place order error:",
+        error
+      );
+
+      // ================================================
+      // 401
+      // ================================================
+
+      if (
+        error.response?.status === 401
+      ) {
+        localStorage.removeItem(
+          "nearshop-token"
+        );
+
+        localStorage.removeItem(
+          "nearshop-user"
+        );
+
+        toast.error(
+          "Your login session expired. Please login again."
+        );
+
+        navigate("/login");
+
+        return;
+      }
+
+      // ================================================
+      // SERVER ERROR
+      // ================================================
+
+      const serverMessage =
+        error.response?.data?.message;
+
+      toast.error(
+        serverMessage ||
+          "Failed to place order. Please try again."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ==================================================
+  // EMPTY CART
+  // ==================================================
 
   if (cartItems.length === 0) {
     return (
-      <main className="min-h-screen bg-[#f6f8f4]">
-        <section className="bg-green-950 text-white">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            <h1 className="text-3xl sm:text-4xl font-extrabold">
-              Checkout
-            </h1>
+      <div className="min-h-[70vh] flex items-center justify-center px-4">
+        <div className="text-center">
+          <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-green-100">
+            <ShoppingBag
+              size={40}
+              className="text-green-700"
+            />
           </div>
-        </section>
 
-        <section className="max-w-5xl mx-auto px-4 py-16">
-          <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8 sm:p-12 text-center">
+          <h1 className="text-2xl font-bold text-gray-900">
+            Your cart is empty
+          </h1>
 
-            <div className="w-20 h-20 mx-auto rounded-full bg-green-50 flex items-center justify-center">
-              <CreditCard
-                size={36}
-                className="text-green-800"
-              />
-            </div>
+          <p className="mt-2 text-gray-500">
+            Add some products before
+            going to checkout.
+          </p>
 
-            <h2 className="text-2xl font-extrabold text-gray-900 mt-6">
-              Your Cart is Empty
-            </h2>
-
-            <p className="text-gray-500 mt-2">
-              Add some products before going to checkout.
-            </p>
-
-            <Link
-              to="/products"
-              className="inline-flex items-center gap-2 mt-6 bg-green-800 hover:bg-green-900 text-white px-6 py-3 rounded-xl font-bold"
-            >
-              <ArrowLeft size={18} />
-              Go Shopping
-            </Link>
-
-          </div>
-        </section>
-      </main>
+          <button
+            onClick={() =>
+              navigate("/products")
+            }
+            className="mt-6 rounded-xl bg-green-700 px-6 py-3 font-semibold text-white transition hover:bg-green-800"
+          >
+            Browse Products
+          </button>
+        </div>
+      </div>
     );
   }
 
+  // ==================================================
+  // MAIN UI
+  // ==================================================
+
   return (
-    <main className="min-h-screen bg-[#f6f8f4]">
+    <div className="min-h-screen bg-[#f6f8f4] px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl">
 
-      {/* =========================================
-          HEADER
-      ========================================== */}
-      <section className="bg-green-950 text-white">
+        {/* ==================================================
+            HEADER
+        ================================================== */}
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
-
-          <Link
-            to="/cart"
-            className="inline-flex items-center gap-2 text-green-100 hover:text-white text-sm font-semibold transition"
-          >
-            <ArrowLeft size={17} />
-            Back to Cart
-          </Link>
-
-          <h1 className="text-3xl sm:text-4xl font-extrabold mt-4">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 sm:text-4xl">
             Checkout
           </h1>
 
-          <p className="text-green-100 mt-2">
-            Complete your delivery and payment details
+          <p className="mt-2 text-gray-500">
+            Complete your delivery details
+            and place your order.
           </p>
-
         </div>
 
-      </section>
+        {/* ==================================================
+            CHECKOUT GRID
+        ================================================== */}
 
-      {/* =========================================
-          CHECKOUT CONTENT
-      ========================================== */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
+        <div className="grid gap-8 lg:grid-cols-3">
 
-        <form onSubmit={handlePlaceOrder}>
+          {/* ==================================================
+              LEFT SIDE
+          ================================================== */}
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
+          <div className="space-y-6 lg:col-span-2">
 
-            {/* =====================================
-                LEFT SIDE
-            ====================================== */}
-            <div className="lg:col-span-2 space-y-6">
+            {/* DELIVERY ADDRESS */}
 
-              {/* Delivery Address */}
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 sm:p-6">
+            <div className="rounded-2xl bg-white p-5 shadow-sm sm:p-7">
 
-                <div className="flex items-center gap-3 mb-6">
-
-                  <div className="w-11 h-11 rounded-xl bg-green-50 flex items-center justify-center">
-                    <MapPin
-                      size={22}
-                      className="text-green-800"
-                    />
-                  </div>
-
-                  <div>
-                    <h2 className="text-xl font-extrabold text-gray-900">
-                      Delivery Address
-                    </h2>
-
-                    <p className="text-sm text-gray-500">
-                      Where should we deliver your order?
-                    </p>
-                  </div>
-
+              <div className="mb-6 flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-green-100">
+                  <MapPin
+                    size={22}
+                    className="text-green-700"
+                  />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">
+                    Delivery Address
+                  </h2>
 
-                  {/* Name */}
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">
-                      Full Name
-                    </label>
-
-                    <div className="relative">
-
-                      <User
-                        size={18}
-                        className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                      />
-
-                      <input
-                        type="text"
-                        name="name"
-                        value={formData.name}
-                        onChange={handleChange}
-                        placeholder="Enter your name"
-                        className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 outline-none focus:border-green-700 focus:ring-2 focus:ring-green-100 transition"
-                      />
-
-                    </div>
-                  </div>
-
-                  {/* Phone */}
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">
-                      Phone Number
-                    </label>
-
-                    <div className="relative">
-
-                      <Phone
-                        size={18}
-                        className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                      />
-
-                      <input
-                        type="tel"
-                        name="phone"
-                        value={formData.phone}
-                        onChange={handleChange}
-                        placeholder="10-digit mobile number"
-                        maxLength="10"
-                        className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 outline-none focus:border-green-700 focus:ring-2 focus:ring-green-100 transition"
-                      />
-
-                    </div>
-                  </div>
-
-                  {/* Address */}
-                  <div className="sm:col-span-2">
-
-                    <label className="block text-sm font-bold text-gray-700 mb-2">
-                      House / Street Address
-                    </label>
-
-                    <div className="relative">
-
-                      <Home
-                        size={18}
-                        className="absolute left-3 top-4 text-gray-400"
-                      />
-
-                      <textarea
-                        name="address"
-                        value={formData.address}
-                        onChange={handleChange}
-                        placeholder="House number, street, area..."
-                        rows="3"
-                        className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 outline-none resize-none focus:border-green-700 focus:ring-2 focus:ring-green-100 transition"
-                      />
-
-                    </div>
-
-                  </div>
-
-                  {/* City */}
-                  <div>
-
-                    <label className="block text-sm font-bold text-gray-700 mb-2">
-                      City
-                    </label>
-
-                    <input
-                      type="text"
-                      name="city"
-                      value={formData.city}
-                      onChange={handleChange}
-                      placeholder="Enter city"
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 outline-none focus:border-green-700 focus:ring-2 focus:ring-green-100 transition"
-                    />
-
-                  </div>
-
-                  {/* Pincode */}
-                  <div>
-
-                    <label className="block text-sm font-bold text-gray-700 mb-2">
-                      Pincode
-                    </label>
-
-                    <input
-                      type="text"
-                      name="pincode"
-                      value={formData.pincode}
-                      onChange={handleChange}
-                      placeholder="6-digit pincode"
-                      maxLength="6"
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 outline-none focus:border-green-700 focus:ring-2 focus:ring-green-100 transition"
-                    />
-
-                  </div>
-
+                  <p className="text-sm text-gray-500">
+                    Where should we deliver
+                    your order?
+                  </p>
                 </div>
-
               </div>
 
-              {/* Payment Method */}
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 sm:p-6">
+              <div className="grid gap-5 sm:grid-cols-2">
 
-                <div className="flex items-center gap-3 mb-6">
+                {/* NAME */}
 
-                  <div className="w-11 h-11 rounded-xl bg-green-50 flex items-center justify-center">
-                    <CreditCard
-                      size={22}
-                      className="text-green-800"
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-700">
+                    Full Name
+                  </label>
+
+                  <div className="relative">
+                    <User
+                      size={18}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
                     />
-                  </div>
-
-                  <div>
-                    <h2 className="text-xl font-extrabold text-gray-900">
-                      Payment Method
-                    </h2>
-
-                    <p className="text-sm text-gray-500">
-                      Choose how you want to pay
-                    </p>
-                  </div>
-
-                </div>
-
-                <div className="space-y-3">
-
-                  {/* Cash on Delivery */}
-                  <label
-                    className={`flex items-center gap-4 p-4 rounded-xl border cursor-pointer transition ${
-                      paymentMethod === "cod"
-                        ? "border-green-700 bg-green-50"
-                        : "border-gray-200 hover:border-green-300"
-                    }`}
-                  >
 
                     <input
-                      type="radio"
-                      name="paymentMethod"
-                      value="cod"
-                      checked={paymentMethod === "cod"}
-                      onChange={(event) =>
-                        setPaymentMethod(event.target.value)
+                      type="text"
+                      name="name"
+                      value={
+                        formData.name
                       }
-                      className="w-4 h-4 accent-green-800"
+                      onChange={
+                        handleChange
+                      }
+                      placeholder="Enter your name"
+                      autoComplete="name"
+                      className="w-full rounded-xl border border-gray-200 bg-gray-50 py-3 pl-10 pr-4 outline-none transition focus:border-green-600 focus:bg-white focus:ring-2 focus:ring-green-100"
+                    />
+                  </div>
+                </div>
+
+                {/* PHONE */}
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-700">
+                    Phone Number
+                  </label>
+
+                  <div className="relative">
+                    <Phone
+                      size={18}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
                     />
 
-                    <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center">
-                      <Banknote
-                        size={21}
-                        className="text-green-800"
-                      />
+                    <input
+                      type="tel"
+                      name="phone"
+                      value={
+                        formData.phone
+                      }
+                      onChange={(event) => {
+                        const value =
+                          event.target.value.replace(
+                            /\D/g,
+                            ""
+                          );
+
+                        if (
+                          value.length <=
+                          10
+                        ) {
+                          setFormData(
+                            (
+                              previous
+                            ) => ({
+                              ...previous,
+                              phone:
+                                value,
+                            })
+                          );
+                        }
+                      }}
+                      placeholder="10 digit mobile number"
+                      autoComplete="tel"
+                      maxLength={10}
+                      className="w-full rounded-xl border border-gray-200 bg-gray-50 py-3 pl-10 pr-4 outline-none transition focus:border-green-600 focus:bg-white focus:ring-2 focus:ring-green-100"
+                    />
+                  </div>
+                </div>
+
+                {/* ADDRESS */}
+
+                <div className="sm:col-span-2">
+                  <label className="mb-2 block text-sm font-semibold text-gray-700">
+                    Address
+                  </label>
+
+                  <textarea
+                    name="address"
+                    value={
+                      formData.address
+                    }
+                    onChange={
+                      handleChange
+                    }
+                    placeholder="House / Door No, Street, Area"
+                    rows={4}
+                    autoComplete="street-address"
+                    className="w-full resize-none rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 outline-none transition focus:border-green-600 focus:bg-white focus:ring-2 focus:ring-green-100"
+                  />
+                </div>
+
+                {/* CITY */}
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-700">
+                    City
+                  </label>
+
+                  <input
+                    type="text"
+                    name="city"
+                    value={
+                      formData.city
+                    }
+                    onChange={
+                      handleChange
+                    }
+                    placeholder="Enter city"
+                    autoComplete="address-level2"
+                    className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 outline-none transition focus:border-green-600 focus:bg-white focus:ring-2 focus:ring-green-100"
+                  />
+                </div>
+
+                {/* PINCODE */}
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-700">
+                    Pincode
+                  </label>
+
+                  <input
+                    type="text"
+                    name="pincode"
+                    value={
+                      formData.pincode
+                    }
+                    onChange={(event) => {
+                      const value =
+                        event.target.value.replace(
+                          /\D/g,
+                          ""
+                        );
+
+                      if (
+                        value.length <=
+                        6
+                      ) {
+                        setFormData(
+                          (
+                            previous
+                          ) => ({
+                            ...previous,
+                            pincode:
+                              value,
+                          })
+                        );
+                      }
+                    }}
+                    placeholder="6 digit pincode"
+                    autoComplete="postal-code"
+                    maxLength={6}
+                    className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 outline-none transition focus:border-green-600 focus:bg-white focus:ring-2 focus:ring-green-100"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* PAYMENT METHOD */}
+
+            <div className="rounded-2xl bg-white p-5 shadow-sm sm:p-7">
+
+              <div className="mb-6 flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-green-100">
+                  <CreditCard
+                    size={22}
+                    className="text-green-700"
+                  />
+                </div>
+
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">
+                    Payment Method
+                  </h2>
+
+                  <p className="text-sm text-gray-500">
+                    Choose how you want to
+                    pay.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+
+                {/* COD */}
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPaymentMethod(
+                      "cod"
+                    )
+                  }
+                  className={`flex w-full items-center justify-between rounded-xl border p-4 text-left transition ${
+                    paymentMethod ===
+                    "cod"
+                      ? "border-green-600 bg-green-50"
+                      : "border-gray-200 hover:border-green-300"
+                  }`}
+                >
+                  <div className="flex items-center gap-4">
+                    <div
+                      className={`flex h-5 w-5 items-center justify-center rounded-full border-2 ${
+                        paymentMethod ===
+                        "cod"
+                          ? "border-green-700"
+                          : "border-gray-300"
+                      }`}
+                    >
+                      {paymentMethod ===
+                        "cod" && (
+                        <div className="h-2.5 w-2.5 rounded-full bg-green-700" />
+                      )}
                     </div>
 
-                    <div className="flex-1">
-                      <p className="font-bold text-gray-900">
+                    <div>
+                      <p className="font-semibold text-gray-900">
                         Cash on Delivery
                       </p>
 
-                      <p className="text-xs text-gray-500 mt-1">
-                        Pay when your order arrives
+                      <p className="text-sm text-gray-500">
+                        Pay when your order
+                        arrives.
                       </p>
                     </div>
+                  </div>
 
-                  </label>
+                  <Truck
+                    size={22}
+                    className="text-green-700"
+                  />
+                </button>
 
-                  {/* UPI */}
-                  <label
-                    className={`flex items-center gap-4 p-4 rounded-xl border cursor-pointer transition ${
-                      paymentMethod === "upi"
-                        ? "border-green-700 bg-green-50"
-                        : "border-gray-200 hover:border-green-300"
-                    }`}
-                  >
+                {/* UPI */}
 
-                    <input
-                      type="radio"
-                      name="paymentMethod"
-                      value="upi"
-                      checked={paymentMethod === "upi"}
-                      onChange={(event) =>
-                        setPaymentMethod(event.target.value)
-                      }
-                      className="w-4 h-4 accent-green-800"
-                    />
-
-                    <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center">
-                      <Smartphone
-                        size={21}
-                        className="text-green-800"
-                      />
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPaymentMethod(
+                      "upi"
+                    )
+                  }
+                  className={`flex w-full items-center justify-between rounded-xl border p-4 text-left transition ${
+                    paymentMethod ===
+                    "upi"
+                      ? "border-green-600 bg-green-50"
+                      : "border-gray-200 hover:border-green-300"
+                  }`}
+                >
+                  <div className="flex items-center gap-4">
+                    <div
+                      className={`flex h-5 w-5 items-center justify-center rounded-full border-2 ${
+                        paymentMethod ===
+                        "upi"
+                          ? "border-green-700"
+                          : "border-gray-300"
+                      }`}
+                    >
+                      {paymentMethod ===
+                        "upi" && (
+                        <div className="h-2.5 w-2.5 rounded-full bg-green-700" />
+                      )}
                     </div>
 
-                    <div className="flex-1">
-                      <p className="font-bold text-gray-900">
+                    <div>
+                      <p className="font-semibold text-gray-900">
                         UPI
                       </p>
 
-                      <p className="text-xs text-gray-500 mt-1">
-                        Pay using your UPI app
+                      <p className="text-sm text-gray-500">
+                        Pay using your UPI
+                        application.
                       </p>
                     </div>
-
-                  </label>
-
-                </div>
-
-                {/* Payment Notice */}
-                <div className="mt-5 p-4 rounded-xl bg-gray-50 border border-gray-100">
-
-                  <div className="flex gap-3">
-
-                    <ShieldCheck
-                      size={19}
-                      className="text-green-700 flex-shrink-0"
-                    />
-
-                    <p className="text-xs sm:text-sm text-gray-600 leading-relaxed">
-                      Your order information is handled securely.
-                      This demo checkout does not process real
-                      payments.
-                    </p>
-
                   </div>
 
-                </div>
-
+                  <CreditCard
+                    size={22}
+                    className="text-green-700"
+                  />
+                </button>
               </div>
 
+              {paymentMethod ===
+                "upi" && (
+                <div className="mt-4 rounded-xl bg-yellow-50 p-4 text-sm text-yellow-800">
+                  UPI payment integration
+                  can be connected later.
+                  For now, the order will be
+                  created with UPI selected.
+                </div>
+              )}
             </div>
+          </div>
 
-            {/* =====================================
-                RIGHT SIDE - ORDER SUMMARY
-            ====================================== */}
-            <div className="lg:col-span-1">
+          {/* ==================================================
+              RIGHT SIDE - ORDER SUMMARY
+          ================================================== */}
 
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 sm:p-6 lg:sticky lg:top-24">
+          <div className="lg:col-span-1">
 
-                <h2 className="text-xl font-extrabold text-gray-900">
-                  Your Order
-                </h2>
+            <div className="sticky top-24 rounded-2xl bg-white p-5 shadow-sm sm:p-7">
 
-                {/* Products */}
-                <div className="mt-5 space-y-4 max-h-72 overflow-y-auto pr-1">
+              <div className="mb-6 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <ShoppingBag
+                    size={22}
+                    className="text-green-700"
+                  />
 
-                  {cartItems.map((item) => (
-
-                    <div
-                      key={item.id}
-                      className="flex items-center gap-3"
-                    >
-
-                      {/* Image */}
-                      <div className="w-14 h-14 rounded-xl overflow-hidden bg-[#f1f7ed] flex-shrink-0">
-
-                        {item.image ? (
-                          <img
-                            src={item.image}
-                            alt={item.name}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            🛒
-                          </div>
-                        )}
-
-                      </div>
-
-                      {/* Details */}
-                      <div className="flex-1 min-w-0">
-
-                        <p className="font-bold text-sm text-gray-900 truncate">
-                          {item.name}
-                        </p>
-
-                        <p className="text-xs text-gray-500 mt-1">
-                          ₹{item.price} × {item.quantity}
-                        </p>
-
-                      </div>
-
-                      <p className="font-bold text-sm text-gray-900">
-                        ₹{item.price * item.quantity}
-                      </p>
-
-                    </div>
-
-                  ))}
-
+                  <h2 className="text-xl font-bold text-gray-900">
+                    Order Summary
+                  </h2>
                 </div>
 
-                <div className="border-t border-gray-100 my-5" />
+                <span className="rounded-full bg-green-100 px-3 py-1 text-sm font-semibold text-green-700">
+                  {cartItems.length}{" "}
+                  {cartItems.length ===
+                  1
+                    ? "item"
+                    : "items"}
+                </span>
+              </div>
 
-                {/* Subtotal */}
-                <div className="flex justify-between text-sm">
+              {/* PRODUCTS */}
 
-                  <span className="text-gray-500">
+              <div className="max-h-80 space-y-4 overflow-y-auto pr-1">
+
+                {cartItems.map(
+                  (item) => {
+                    const itemId =
+                      item.id ||
+                      item._id ||
+                      item.productId;
+
+                    return (
+                      <div
+                        key={itemId}
+                        className="flex gap-3 border-b border-gray-100 pb-4"
+                      >
+                        {/* IMAGE */}
+
+                        <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-gray-100">
+                          {item.image ? (
+                            <img
+                              src={
+                                item.image.startsWith(
+                                  "http"
+                                )
+                                  ? item.image
+                                  : `${API_URL}${item.image}`
+                              }
+                              alt={
+                                item.name
+                              }
+                              className="h-full w-full object-cover"
+                              onError={(
+                                event
+                              ) => {
+                                event.currentTarget.style.display =
+                                  "none";
+                              }}
+                            />
+                          ) : (
+                            <div className="flex h-full items-center justify-center text-xl">
+                              🛒
+                            </div>
+                          )}
+                        </div>
+
+                        {/* DETAILS */}
+
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-semibold text-gray-900">
+                            {item.name}
+                          </p>
+
+                          <p className="mt-1 text-sm text-gray-500">
+                            ₹
+                            {Number(
+                              item.price
+                            ).toFixed(
+                              2
+                            )}{" "}
+                            ×{" "}
+                            {item.quantity}
+                          </p>
+                        </div>
+
+                        <div className="text-right">
+                          <p className="font-bold text-gray-900">
+                            ₹
+                            {(
+                              Number(
+                                item.price
+                              ) *
+                              Number(
+                                item.quantity
+                              )
+                            ).toFixed(
+                              2
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  }
+                )}
+              </div>
+
+              {/* PRICE DETAILS */}
+
+              <div className="mt-6 space-y-3">
+
+                <div className="flex justify-between text-gray-600">
+                  <span>
                     Subtotal
                   </span>
 
-                  <span className="font-semibold text-gray-900">
-                    ₹{subtotal}
+                  <span className="font-medium text-gray-900">
+                    ₹
+                    {subtotal.toFixed(
+                      2
+                    )}
                   </span>
-
                 </div>
 
-                {/* Delivery */}
-                <div className="flex justify-between text-sm mt-4">
+                {/* DISCOUNT */}
 
-                  <span className="text-gray-500">
+                <div className="flex justify-between text-green-700">
+                  <span>
+                    Discount{" "}
+                    {discountPercent >
+                      0 &&
+                      `(${discountPercent}%)`}
+                  </span>
+
+                  <span className="font-semibold">
+                    - ₹
+                    {discountAmount.toFixed(
+                      2
+                    )}
+                  </span>
+                </div>
+
+                {/* DELIVERY */}
+
+                <div className="flex justify-between text-gray-600">
+                  <span>
                     Delivery
                   </span>
 
-                  <span
-                    className={
-                      deliveryCharge === 0
-                        ? "font-semibold text-green-700"
-                        : "font-semibold text-gray-900"
-                    }
-                  >
-                    {deliveryCharge === 0
+                  <span className="font-medium text-gray-900">
+                    {deliveryCharge ===
+                    0
                       ? "FREE"
-                      : `₹${deliveryCharge}`}
+                      : `₹${deliveryCharge.toFixed(
+                          2
+                        )}`}
                   </span>
-
                 </div>
 
-                <div className="border-t border-gray-100 my-5" />
+                <div className="my-4 border-t border-gray-200" />
 
-                {/* Total */}
+                {/* TOTAL */}
+
                 <div className="flex items-center justify-between">
-
-                  <span className="text-lg font-extrabold text-gray-900">
+                  <span className="text-lg font-bold text-gray-900">
                     Total
                   </span>
 
-                  <span className="text-2xl font-extrabold text-green-800">
-                    ₹{total}
+                  <span className="text-2xl font-bold text-green-700">
+                    ₹
+                    {finalTotal.toFixed(
+                      2
+                    )}
                   </span>
-
                 </div>
-
-                {/* Place Order */}
-                <button
-                  type="submit"
-                  disabled={placingOrder}
-                  className={`w-full mt-6 py-3.5 rounded-xl flex items-center justify-center gap-2 font-bold text-white transition ${
-                    placingOrder
-                      ? "bg-green-600 cursor-not-allowed"
-                      : "bg-green-800 hover:bg-green-900 active:scale-[0.98]"
-                  }`}
-                >
-                  {placingOrder ? (
-                    <>
-                      <span className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                      Placing Order...
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle size={19} />
-                      Place Order
-                    </>
-                  )}
-                </button>
-
-                {/* Delivery Info */}
-                <div className="mt-5 flex gap-3 p-4 rounded-xl bg-green-50 border border-green-100">
-
-                  <Truck
-                    size={20}
-                    className="text-green-700 flex-shrink-0"
-                  />
-
-                  <p className="text-xs text-green-800 leading-relaxed">
-                    Local delivery is available. Free delivery
-                    applies to orders above ₹500.
-                  </p>
-
-                </div>
-
               </div>
 
+              {/* DISCOUNT MESSAGE */}
+
+              {discountPercent >
+                0 && (
+                <div className="mt-5 rounded-xl bg-green-50 p-4">
+                  <div className="flex gap-3">
+                    <CheckCircle
+                      size={20}
+                      className="mt-0.5 shrink-0 text-green-700"
+                    />
+
+                    <div>
+                      <p className="font-semibold text-green-800">
+                        You saved ₹
+                        {discountAmount.toFixed(
+                          2
+                        )}
+                      </p>
+
+                      <p className="mt-1 text-sm text-green-700">
+                        {discountPercent}%
+                        discount applied
+                        to your order.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* FREE DELIVERY MESSAGE */}
+
+              {deliveryCharge ===
+                0 && (
+                <div className="mt-4 rounded-xl bg-blue-50 p-4 text-sm text-blue-700">
+                  🎉 Free delivery
+                  applied!
+                </div>
+              )}
+
+              {/* PLACE ORDER */}
+
+              <button
+                type="button"
+                onClick={
+                  handlePlaceOrder
+                }
+                disabled={loading}
+                className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-green-700 px-5 py-4 font-bold text-white shadow-sm transition hover:bg-green-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {loading ? (
+                  <>
+                    <span className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    Placing Order...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle
+                      size={20}
+                    />
+                    Place Order
+                  </>
+                )}
+              </button>
+
+              <p className="mt-4 text-center text-xs leading-5 text-gray-500">
+                By placing your order,
+                you agree to NearShop's
+                terms and delivery
+                policy.
+              </p>
             </div>
-
           </div>
-
-        </form>
-
-      </section>
-
-    </main>
+        </div>
+      </div>
+    </div>
   );
 }
 

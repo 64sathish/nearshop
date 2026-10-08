@@ -1,548 +1,701 @@
+
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
 import axios from "axios";
+import { Link } from "react-router-dom";
+import toast from "react-hot-toast";
 import {
   Search,
+  Heart,
+  ShoppingCart,
   SlidersHorizontal,
+  Star,
   X,
+  ArrowUpDown,
 } from "lucide-react";
-import ProductCard from "../components/ProductCard";
 
-const categories = [
-  {
-    name: "All",
-    icon: "🛍️",
-  },
-  {
-    name: "Vegetables",
-    icon: "🥬",
-  },
-  {
-    name: "Fruits",
-    icon: "🍎",
-  },
-  {
-    name: "Dairy",
-    icon: "🥛",
-  },
-  {
-    name: "Rice & Grains",
-    icon: "🌾",
-  },
-  {
-    name: "Bakery",
-    icon: "🍞",
-  },
-  {
-    name: "Beverages",
-    icon: "🥤",
-  },
-];
+import { useCart } from "../context/CartContext";
+
+const API_URL = "http://localhost:5000/api/products";
 
 function Products() {
-  const [searchParams, setSearchParams] =
-    useSearchParams();
+  const { addToCart } = useCart();
 
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
 
-  const selectedCategory =
-    searchParams.get("category") || "All";
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("all");
+  const [shop, setShop] = useState("all");
 
-  const searchText =
-    searchParams.get("search") || "";
+  const [minPrice, setMinPrice] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
 
-  const [inputText, setInputText] =
-    useState(searchText);
+  const [minRating, setMinRating] = useState("");
+  const [maxRating, setMaxRating] = useState("");
 
-  // --------------------------------------------------
-  // GET PRODUCTS
-  // --------------------------------------------------
+  const [sort, setSort] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
 
-  useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        setLoading(true);
-        setError("");
+  const [likedProducts, setLikedProducts] = useState({});
 
-        const response = await axios.get(
-          "http://localhost:5000/api/products"
-        );
+  const token = localStorage.getItem("nearshop-token");
 
-        setProducts(response.data);
-      } catch (error) {
-        console.error(
-          "Products loading error:",
-          error
-        );
+  function getLoggedInUserId() {
+    try {
+      const savedUser = localStorage.getItem("nearshop-user");
 
-        setError(
-          "Unable to load products. Please check that the backend server is running."
-        );
-      } finally {
-        setLoading(false);
+      if (!savedUser) {
+        return null;
       }
-    };
 
-    fetchProducts();
-  }, []);
+      const user = JSON.parse(savedUser);
 
-  // --------------------------------------------------
-  // UPDATE INPUT WHEN URL SEARCH CHANGES
-  // --------------------------------------------------
-
-  useEffect(() => {
-    setInputText(searchText);
-  }, [searchText]);
-
-  // --------------------------------------------------
-  // CATEGORY FILTER
-  // --------------------------------------------------
-
-  const handleCategory = (category) => {
-    const params = new URLSearchParams();
-
-    if (category !== "All") {
-      params.set("category", category);
+      return user._id || user.id || null;
+    } catch {
+      return null;
     }
+  }
 
-    if (searchText.trim()) {
-      params.set("search", searchText.trim());
+  const loadProducts = async () => {
+    try {
+      setLoading(true);
+
+      const params = {};
+
+      if (search.trim()) {
+        params.search = search.trim();
+      }
+
+      if (category !== "all") {
+        params.category = category;
+      }
+
+      if (shop !== "all") {
+        params.shop = shop;
+      }
+
+      if (minPrice !== "") {
+        params.minPrice = minPrice;
+      }
+
+      if (maxPrice !== "") {
+        params.maxPrice = maxPrice;
+      }
+
+      if (minRating !== "") {
+        params.minRating = minRating;
+      }
+
+      if (maxRating !== "") {
+        params.maxRating = maxRating;
+      }
+
+      if (sort) {
+        params.sort = sort;
+      }
+
+      const response = await axios.get(API_URL, {
+        params,
+      });
+
+      const loadedProducts = response.data.products || [];
+
+      setProducts(loadedProducts);
+
+      const userId = getLoggedInUserId();
+      const likedState = {};
+
+      loadedProducts.forEach((product) => {
+        likedState[product._id] =
+          !!userId &&
+          Array.isArray(product.likedBy) &&
+          product.likedBy.some(
+            (id) => String(id) === String(userId)
+          );
+      });
+
+      setLikedProducts(likedState);
+    } catch (error) {
+      console.error("LOAD PRODUCTS ERROR:", error);
+
+      toast.error(
+        error.response?.data?.message ||
+          "Products could not be loaded"
+      );
+    } finally {
+      setLoading(false);
     }
-
-    setSearchParams(params);
   };
 
-  // --------------------------------------------------
-  // SEARCH
-  // --------------------------------------------------
+  useEffect(() => {
+    loadProducts();
+  }, [
+    category,
+    shop,
+    minPrice,
+    maxPrice,
+    minRating,
+    maxRating,
+    sort,
+  ]);
 
   const handleSearch = (event) => {
     event.preventDefault();
-
-    const params = new URLSearchParams();
-
-    if (selectedCategory !== "All") {
-      params.set(
-        "category",
-        selectedCategory
-      );
-    }
-
-    if (inputText.trim()) {
-      params.set(
-        "search",
-        inputText.trim()
-      );
-    }
-
-    setSearchParams(params);
+    loadProducts();
   };
 
-  // --------------------------------------------------
-  // CLEAR SEARCH
-  // --------------------------------------------------
-
-  const clearSearch = () => {
-    const params = new URLSearchParams();
-
-    if (selectedCategory !== "All") {
-      params.set(
-        "category",
-        selectedCategory
-      );
+  const handleLike = async (productId) => {
+    if (!token) {
+      toast.error("Please login to like products");
+      return;
     }
 
-    setSearchParams(params);
-    setInputText("");
+    try {
+      const response = await axios.post(
+        `${API_URL}/${productId}/like`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = response.data;
+
+      setLikedProducts((current) => ({
+        ...current,
+        [productId]: data.liked,
+      }));
+
+      setProducts((currentProducts) =>
+        currentProducts.map((product) =>
+          product._id === productId
+            ? {
+                ...product,
+                likes: data.likes,
+              }
+            : product
+        )
+      );
+
+      toast.success(
+        data.liked
+          ? "Product liked ❤️"
+          : "Product unliked"
+      );
+    } catch (error) {
+      console.error("LIKE ERROR:", error);
+
+      toast.error(
+        error.response?.data?.message ||
+          "Could not update like"
+      );
+    }
   };
 
-  // --------------------------------------------------
-  // FILTER PRODUCTS
-  // --------------------------------------------------
+  const handleAddToCart = (product) => {
+    if (Number(product.stock) <= 0) {
+      toast.error("This product is out of stock");
+      return;
+    }
 
-  const filteredProducts = useMemo(() => {
-    const search =
-      searchText.trim().toLowerCase();
-
-    return products.filter((product) => {
-
-      // Category
-      const matchesCategory =
-        selectedCategory === "All" ||
-        product.category === selectedCategory;
-
-      // Search
-      const matchesSearch =
-        !search ||
-        product.name
-          ?.toLowerCase()
-          .includes(search) ||
-        product.category
-          ?.toLowerCase()
-          .includes(search) ||
-        product.shop
-          ?.toLowerCase()
-          .includes(search) ||
-        product.description
-          ?.toLowerCase()
-          .includes(search);
-
-      return (
-        matchesCategory &&
-        matchesSearch
-      );
+    addToCart({
+      id: product._id,
+      productId: product._id,
+      name: product.name,
+      price: Number(product.price),
+      image: product.image,
+      unit: product.unit,
+      shop: product.shop,
+      stock: product.stock,
     });
-  }, [
-    products,
-    selectedCategory,
-    searchText,
-  ]);
 
-  // --------------------------------------------------
-  // LOADING
-  // --------------------------------------------------
+    toast.success(`${product.name} added to cart`);
+  };
 
-  if (loading) {
+  const resetFilters = () => {
+    setSearch("");
+    setCategory("all");
+    setShop("all");
+    setMinPrice("");
+    setMaxPrice("");
+    setMinRating("");
+    setMaxRating("");
+    setSort("");
+  };
+
+  const categories = useMemo(() => {
+    const values = products
+      .map((product) => product.category)
+      .filter(Boolean);
+
+    return [...new Set(values)];
+  }, [products]);
+
+  const shops = useMemo(() => {
+    const values = products
+      .map((product) => product.shop)
+      .filter(Boolean);
+
+    return [...new Set(values)];
+  }, [products]);
+
+  const ProductCard = ({ product }) => {
+    const isLiked = likedProducts[product._id];
+
+    const image =
+      product.image ||
+      product.images?.[0] ||
+      "https://via.placeholder.com/500x400?text=NearShop";
+
+    const rating = Number(product.rating || 0);
+
     return (
-      <main className="min-h-screen bg-[#f6f8f4] flex items-center justify-center px-4">
+      <div className="group overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
+        <div className="relative bg-gray-100">
+          <Link to={`/products/${product._id}`}>
+            <img
+              src={image}
+              alt={product.name}
+              className="h-56 w-full object-cover transition duration-300 group-hover:scale-105"
+              onError={(event) => {
+                event.currentTarget.src =
+                  "https://via.placeholder.com/500x400?text=NearShop";
+              }}
+            />
+          </Link>
 
-        <div className="text-center">
-
-          <div className="w-14 h-14 border-4 border-green-200 border-t-green-800 rounded-full animate-spin mx-auto" />
-
-          <p className="mt-4 text-green-800 font-bold">
-            Loading fresh products...
-          </p>
-
-          <p className="text-sm text-gray-500 mt-1">
-            Please wait
-          </p>
-
-        </div>
-
-      </main>
-    );
-  }
-
-  // --------------------------------------------------
-  // ERROR
-  // --------------------------------------------------
-
-  if (error) {
-    return (
-      <main className="min-h-screen bg-[#f6f8f4] flex items-center justify-center px-4">
-
-        <div className="bg-white rounded-3xl shadow-sm border border-red-100 p-8 text-center max-w-lg w-full">
-
-          <div className="text-6xl">
-            ⚠️
-          </div>
-
-          <h2 className="text-2xl font-bold text-gray-900 mt-4">
-            Products could not be loaded
-          </h2>
-
-          <p className="text-red-600 mt-3">
-            {error}
-          </p>
+          {product.isOffer && (
+            <span className="absolute left-3 top-3 rounded-full bg-red-600 px-3 py-1 text-xs font-bold text-white">
+              OFFER
+            </span>
+          )}
 
           <button
-            onClick={() =>
-              window.location.reload()
+            type="button"
+            onClick={() => handleLike(product._id)}
+            className={`absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-md transition ${
+              isLiked
+                ? "text-red-600"
+                : "text-gray-600 hover:text-red-600"
+            }`}
+            title={
+              isLiked
+                ? "Unlike product"
+                : "Like product"
             }
-            className="mt-6 bg-green-800 hover:bg-green-900 text-white px-6 py-3 rounded-xl font-bold"
           >
-            Try Again
+            <Heart
+              size={21}
+              fill={isLiked ? "currentColor" : "none"}
+            />
           </button>
-
         </div>
 
-      </main>
-    );
-  }
-
-  // --------------------------------------------------
-  // PAGE
-  // --------------------------------------------------
-
-  return (
-    <main className="min-h-screen bg-[#f6f8f4]">
-
-      {/* ================= HEADER ================= */}
-
-      <section className="bg-gradient-to-br from-green-950 via-green-900 to-green-800 text-white">
-
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
-
-          <div className="max-w-3xl">
-
-            <span className="inline-flex items-center gap-2 bg-white/10 border border-white/10 rounded-full px-4 py-2 text-sm">
-              🛒 Fresh groceries near you
+        <div className="p-4">
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <span className="text-xs font-medium text-green-700">
+              {product.category}
             </span>
 
-            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold mt-5 leading-tight">
-              Shop Fresh Products
-            </h1>
-
-            <p className="text-green-100 mt-3 text-sm sm:text-base max-w-2xl">
-              Find fresh vegetables, fruits,
-              dairy, rice, bakery items and
-              beverages from nearby shops.
-            </p>
-
+            <span className="text-xs text-gray-500">
+              {product.shop}
+            </span>
           </div>
 
-          {/* SEARCH */}
+          <Link to={`/products/${product._id}`}>
+            <h2 className="line-clamp-1 text-lg font-bold text-gray-900 hover:text-green-700">
+              {product.name}
+            </h2>
+          </Link>
+
+          <div className="mt-2 flex items-center gap-2">
+            <div className="flex items-center gap-1 rounded-md bg-green-700 px-2 py-1 text-xs font-bold text-white">
+              <Star
+                size={12}
+                fill="currentColor"
+              />
+              {rating.toFixed(1)}
+            </div>
+
+            <span className="text-xs text-gray-500">
+              {product.ratingCount || 0} ratings
+            </span>
+
+            <span className="text-xs text-gray-400">
+              ❤️ {product.likes || 0}
+            </span>
+          </div>
+
+          <div className="mt-3 flex items-center gap-2">
+            <span className="text-xl font-bold text-gray-900">
+              ₹{Number(product.price || 0).toFixed(0)}
+            </span>
+
+            {product.oldPrice !== null &&
+              product.oldPrice !== undefined &&
+              Number(product.oldPrice) > 0 && (
+                <span className="text-sm text-gray-400 line-through">
+                  ₹{Number(product.oldPrice).toFixed(0)}
+                </span>
+              )}
+
+            {Number(product.discountPercent) > 0 && (
+              <span className="text-xs font-bold text-green-600">
+                {product.discountPercent}% OFF
+              </span>
+            )}
+          </div>
+
+          <p className="mt-1 text-sm text-gray-500">
+            {product.unit}
+          </p>
+
+          <p
+            className={`mt-2 text-sm font-medium ${
+              Number(product.stock) > 0
+                ? Number(product.stock) <= 5
+                  ? "text-orange-600"
+                  : "text-green-600"
+                : "text-red-600"
+            }`}
+          >
+            {Number(product.stock) > 0
+              ? Number(product.stock) <= 5
+                ? `Only ${product.stock} left`
+                : "In stock"
+              : "Out of stock"}
+          </p>
+
+          <div className="mt-4 flex gap-2">
+            <Link
+              to={`/products/${product._id}`}
+              className="flex flex-1 items-center justify-center rounded-xl border border-green-700 px-3 py-2 text-sm font-semibold text-green-700 transition hover:bg-green-50"
+            >
+              View
+            </Link>
+
+            <button
+              type="button"
+              onClick={() => handleAddToCart(product)}
+              disabled={Number(product.stock) <= 0}
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-green-700 px-3 py-2 text-sm font-semibold text-white transition hover:bg-green-800 disabled:cursor-not-allowed disabled:bg-gray-400"
+            >
+              <ShoppingCart size={17} />
+              Add
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="min-h-screen bg-[#f6f8f4]">
+      <section className="bg-green-900 px-4 py-10 text-white">
+        <div className="mx-auto max-w-7xl">
+          <p className="mb-2 text-sm font-medium text-green-200">
+            NearShop Grocery Marketplace
+          </p>
+
+          <h1 className="text-3xl font-bold md:text-4xl">
+            Fresh Products
+          </h1>
+
+          <p className="mt-2 max-w-2xl text-green-100">
+            Shop vegetables, fruits, dairy, groceries,
+            bakery items and more from nearby shops.
+          </p>
 
           <form
             onSubmit={handleSearch}
-            className="mt-8 max-w-3xl"
+            className="mt-6 flex max-w-3xl overflow-hidden rounded-xl bg-white shadow-lg"
           >
+            <input
+              type="text"
+              value={search}
+              onChange={(event) =>
+                setSearch(event.target.value)
+              }
+              placeholder="Search tomato, milk, rice..."
+              className="min-w-0 flex-1 px-4 py-3 text-gray-900 outline-none"
+            />
 
-            <div className="bg-white rounded-2xl p-2 flex items-center shadow-xl">
-
-              <Search
-                size={21}
-                className="text-gray-400 ml-3 flex-shrink-0"
-              />
-
-              <input
-                type="text"
-                value={inputText}
-                onChange={(event) =>
-                  setInputText(
-                    event.target.value
-                  )
-                }
-                placeholder="Search tomato, rice, apple..."
-                className="w-full px-3 py-3 outline-none text-gray-800 bg-transparent text-sm sm:text-base"
-              />
-
-              {inputText && (
-                <button
-                  type="button"
-                  onClick={clearSearch}
-                  className="text-gray-400 hover:text-gray-700 p-2"
-                >
-                  <X size={18} />
-                </button>
-              )}
-
-              <button
-                type="submit"
-                className="bg-green-800 hover:bg-green-950 text-white px-5 sm:px-7 py-3 rounded-xl font-bold transition"
-              >
-                Search
-              </button>
-
-            </div>
-
+            <button
+              type="submit"
+              className="flex items-center gap-2 bg-green-700 px-5 font-semibold text-white hover:bg-green-800"
+            >
+              <Search size={19} />
+              Search
+            </button>
           </form>
-
         </div>
-
       </section>
 
-      {/* ================= MAIN ================= */}
-
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
-
-        {/* CATEGORY TITLE */}
-
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5">
-
+      <main className="mx-auto max-w-7xl px-4 py-8">
+        <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
           <div>
-
-            <p className="text-green-700 font-bold text-sm">
-              SHOP BY CATEGORY
+            <p className="font-semibold text-gray-900">
+              {products.length} Products
             </p>
 
-            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mt-1">
-              Choose what you need
-            </h2>
-
-          </div>
-
-          <div className="flex items-center gap-2 text-sm text-gray-500">
-
-            <SlidersHorizontal size={17} />
-
-            <span>
-              {filteredProducts.length} products
-            </span>
-
-          </div>
-
-        </div>
-
-        {/* ================= CATEGORY BUTTONS ================= */}
-
-        <div className="flex gap-3 overflow-x-auto pb-3 scrollbar-hide">
-
-          {categories.map((category) => {
-
-            const active =
-              selectedCategory ===
-              category.name;
-
-            return (
-              <button
-                key={category.name}
-                onClick={() =>
-                  handleCategory(
-                    category.name
-                  )
-                }
-                className={`flex-shrink-0 flex items-center gap-2 px-4 sm:px-5 py-3 rounded-xl font-semibold text-sm transition-all duration-200 border ${
-                  active
-                    ? "bg-green-800 text-white border-green-800 shadow-md"
-                    : "bg-white text-gray-700 border-gray-200 hover:border-green-400 hover:text-green-800"
-                }`}
-              >
-
-                <span className="text-lg">
-                  {category.icon}
-                </span>
-
-                {category.name}
-
-              </button>
-            );
-          })}
-
-        </div>
-
-        {/* ================= CURRENT FILTER ================= */}
-
-        <div className="mt-8 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-
-          <div>
-
-            <h2 className="text-2xl font-bold text-gray-900">
-
-              {selectedCategory === "All"
-                ? "All Products"
-                : selectedCategory}
-
-            </h2>
-
-            <p className="text-gray-500 mt-1 text-sm">
-
-              {searchText
-                ? `Search results for "${searchText}"`
-                : selectedCategory === "All"
-                ? "Fresh products from nearby shops"
-                : `Fresh ${selectedCategory.toLowerCase()} from nearby shops`}
-
+            <p className="text-sm text-gray-500">
+              Find the products you need
             </p>
-
           </div>
 
-          {(selectedCategory !== "All" ||
-            searchText) && (
+          <div className="flex flex-wrap gap-2">
             <button
-              onClick={() => {
-                setSearchParams({});
-                setInputText("");
-              }}
-              className="text-green-700 font-semibold text-sm hover:text-green-900"
+              type="button"
+              onClick={() =>
+                setShowFilters(!showFilters)
+              }
+              className="flex items-center gap-2 rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-gray-50"
             >
-              Clear filters
+              <SlidersHorizontal size={17} />
+              Filters
             </button>
-          )}
 
+            <select
+              value={sort}
+              onChange={(event) =>
+                setSort(event.target.value)
+              }
+              className="rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none"
+            >
+              <option value="">
+                Sort Products
+              </option>
+
+              <option value="price-low">
+                Price: Low to High
+              </option>
+
+              <option value="price-high">
+                Price: High to Low
+              </option>
+
+              <option value="rating-high">
+                Rating: High to Low
+              </option>
+
+              <option value="rating-low">
+                Rating: Low to High
+              </option>
+
+              <option value="likes-high">
+                Most Liked
+              </option>
+
+              <option value="newest">
+                Newest
+              </option>
+            </select>
+
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="flex items-center gap-2 rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
+            >
+              <X size={16} />
+              Clear
+            </button>
+          </div>
         </div>
 
-        {/* ================= PRODUCTS ================= */}
+        {showFilters && (
+          <div className="mb-8 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+            <div className="mb-5 flex items-center gap-2">
+              <ArrowUpDown
+                size={20}
+                className="text-green-700"
+              />
 
-        <div className="mt-6">
+              <h2 className="text-lg font-bold">
+                Product Filters
+              </h2>
+            </div>
 
-          {filteredProducts.length === 0 ? (
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+              <div>
+                <label className="mb-2 block text-sm font-semibold">
+                  Category
+                </label>
 
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm py-16 px-5 text-center">
+                <select
+                  value={category}
+                  onChange={(event) =>
+                    setCategory(event.target.value)
+                  }
+                  className="w-full rounded-xl border border-gray-300 px-3 py-2.5 outline-none focus:border-green-600"
+                >
+                  <option value="all">
+                    All Categories
+                  </option>
 
-              <div className="text-6xl">
-                🛒
+                  {categories.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </select>
               </div>
 
-              <h3 className="text-xl font-bold text-gray-800 mt-4">
-                No products found
-              </h3>
+              <div>
+                <label className="mb-2 block text-sm font-semibold">
+                  Shop
+                </label>
 
-              <p className="text-gray-500 mt-2">
-                Try another category or search.
-              </p>
+                <select
+                  value={shop}
+                  onChange={(event) =>
+                    setShop(event.target.value)
+                  }
+                  className="w-full rounded-xl border border-gray-300 px-3 py-2.5 outline-none focus:border-green-600"
+                >
+                  <option value="all">
+                    All Shops
+                  </option>
 
-              <button
-                onClick={() => {
-                  setSearchParams({});
-                  setInputText("");
-                }}
-                className="mt-5 bg-green-800 text-white px-5 py-3 rounded-xl font-semibold hover:bg-green-900"
-              >
-                Show all products
-              </button>
+                  {shops.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
+              <div>
+                <label className="mb-2 block text-sm font-semibold">
+                  Minimum Price
+                </label>
+
+                <input
+                  type="number"
+                  min="0"
+                  value={minPrice}
+                  onChange={(event) =>
+                    setMinPrice(event.target.value)
+                  }
+                  placeholder="₹ Min"
+                  className="w-full rounded-xl border border-gray-300 px-3 py-2.5 outline-none focus:border-green-600"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold">
+                  Maximum Price
+                </label>
+
+                <input
+                  type="number"
+                  min="0"
+                  value={maxPrice}
+                  onChange={(event) =>
+                    setMaxPrice(event.target.value)
+                  }
+                  placeholder="₹ Max"
+                  className="w-full rounded-xl border border-gray-300 px-3 py-2.5 outline-none focus:border-green-600"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold">
+                  Minimum Rating
+                </label>
+
+                <select
+                  value={minRating}
+                  onChange={(event) =>
+                    setMinRating(event.target.value)
+                  }
+                  className="w-full rounded-xl border border-gray-300 px-3 py-2.5 outline-none"
+                >
+                  <option value="">
+                    Any Rating
+                  </option>
+
+                  <option value="1">1 ⭐ & above</option>
+                  <option value="2">2 ⭐ & above</option>
+                  <option value="3">3 ⭐ & above</option>
+                  <option value="4">4 ⭐ & above</option>
+                  <option value="5">5 ⭐ only</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold">
+                  Maximum Rating
+                </label>
+
+                <select
+                  value={maxRating}
+                  onChange={(event) =>
+                    setMaxRating(event.target.value)
+                  }
+                  className="w-full rounded-xl border border-gray-300 px-3 py-2.5 outline-none"
+                >
+                  <option value="">
+                    Any Rating
+                  </option>
+
+                  <option value="1">Up to 1 ⭐</option>
+                  <option value="2">Up to 2 ⭐</option>
+                  <option value="3">Up to 3 ⭐</option>
+                  <option value="4">Up to 4 ⭐</option>
+                  <option value="5">Up to 5 ⭐</option>
+                </select>
+              </div>
             </div>
+          </div>
+        )}
 
-          ) : (
+        {loading ? (
+          <div className="py-20 text-center">
+            <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-green-200 border-t-green-700" />
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5 sm:gap-6">
+            <p className="mt-4 text-gray-500">
+              Loading products...
+            </p>
+          </div>
+        ) : products.length === 0 ? (
+          <div className="rounded-2xl border border-gray-200 bg-white px-5 py-20 text-center shadow-sm">
+            <Search
+              size={45}
+              className="mx-auto text-gray-300"
+            />
 
-              {filteredProducts.map(
-                (product) => (
-                  <ProductCard
-                    key={product._id}
-                    product={{
-                      ...product,
-                      id: product._id,
-                    }}
-                  />
-                )
-              )}
+            <h2 className="mt-4 text-xl font-bold text-gray-800">
+              No products found
+            </h2>
 
-            </div>
-
-          )}
-
-        </div>
-
-      </section>
-
-      {/* ================= BOTTOM BANNER ================= */}
-
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-10">
-
-        <div className="rounded-2xl bg-green-900 text-white p-6 sm:p-8 flex flex-col md:flex-row md:items-center md:justify-between gap-5">
-
-          <div>
-
-            <p className="text-green-300 font-semibold text-sm">
-              NEARSHOP
+            <p className="mt-2 text-gray-500">
+              Try changing your search or filters.
             </p>
 
-            <h3 className="text-xl sm:text-2xl font-bold mt-1">
-              Fresh groceries from local shops
-            </h3>
-
-            <p className="text-green-100 text-sm mt-2">
-              Shop local. Save more. Get fresh.
-            </p>
-
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="mt-5 rounded-xl bg-green-700 px-5 py-2.5 font-semibold text-white hover:bg-green-800"
+            >
+              Clear Filters
+            </button>
           </div>
-
-          <div className="text-4xl sm:text-5xl">
-            🥬 🍎 🥛 🌾
+        ) : (
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {products.map((product) => (
+              <ProductCard
+                key={product._id}
+                product={product}
+              />
+            ))}
           </div>
-
-        </div>
-
-      </section>
-
-    </main>
+        )}
+      </main>
+    </div>
   );
 }
 
 export default Products;
+
